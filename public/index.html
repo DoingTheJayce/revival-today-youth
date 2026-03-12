@@ -3,26 +3,25 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Revival Today Youth – Team Assignment Tracker</title>
+<title>Revival Today Youth</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0f1117; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
-  select, input, textarea { font-family: inherit; }
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  select, input { font-family: inherit; }
+  ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: #0f1117; }
   ::-webkit-scrollbar-thumb { background: #1e2533; border-radius: 3px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useCallback } = React;
-
 const API = "/.netlify/functions/db";
 const PRIORITIES = ["Low","Medium","High","Urgent"];
 const TYPES = ["Task","Project","Shift"];
@@ -30,488 +29,260 @@ const STATUSES = ["To Do","In Progress","Review","Done"];
 const AVATAR_COLORS = ["#E8C547","#4ECDC4","#FF6B6B","#A78BFA","#F97316","#34D399","#60A5FA","#F472B6"];
 const STATUS_COLORS = {"To Do":"#64748b","In Progress":"#3b82f6","Review":"#f59e0b","Done":"#22c55e"};
 const PRIORITY_COLORS = {Low:"#64748b",Medium:"#3b82f6",High:"#f97316",Urgent:"#ef4444"};
-
 const api = {
-  get: (path) => fetch(`${API}/${path}`).then(r=>r.json()),
-  post: (path,body) => fetch(`${API}/${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(r=>r.json()),
-  put: (path,body) => fetch(`${API}/${path}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(r=>r.json()),
-  del: (path) => fetch(`${API}/${path}`,{method:"DELETE"}).then(r=>r.json()),
+  get:(p)=>fetch(`${API}/${p}`).then(r=>r.json()),
+  post:(p,b)=>fetch(`${API}/${p}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json()),
+  put:(p,b)=>fetch(`${API}/${p}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json()),
+  del:(p)=>fetch(`${API}/${p}`,{method:"DELETE"}).then(r=>r.json()),
 };
+function initials(n){return n.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);}
+function getDaysUntil(d){if(!d)return null;const t=new Date();t.setHours(0,0,0,0);return Math.ceil((new Date(d.includes("T")?d:d+"T00:00:00")-t)/86400000);}
+function DueBadge({date}){if(!date)return null;const d=getDaysUntil(date);let c="#22c55e",l=`${d}d left`;if(d<0){c="#ef4444";l=`${Math.abs(d)}d overdue`;}else if(d===0){c="#f97316";l="Due today";}else if(d<=2){c="#f59e0b";}return <span style={{fontSize:11,fontWeight:700,color:c,background:c+"18",borderRadius:6,padding:"2px 8px",whiteSpace:"nowrap"}}>{l}</span>;}
+function Spinner({size=20}){return <div style={{width:size,height:size,border:"2px solid #1e2533",borderTop:"2px solid #f97316",borderRadius:"50%",animation:"spin .7s linear infinite",flexShrink:0}}/>;}
+function Toast({msg,type}){return <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:type==="error"?"#ef4444":"#22c55e",color:"#fff",padding:"10px 20px",borderRadius:10,fontWeight:600,fontSize:14,animation:"fadeIn .2s ease",boxShadow:"0 4px 20px #0008"}}>{type==="error"?"❌ ":"✅ "}{msg}</div>;}
+function Btn({children,onClick,style={},disabled=false}){return <button onClick={onClick} disabled={disabled} style={{cursor:disabled?"not-allowed":"pointer",border:"none",fontFamily:"inherit",opacity:disabled?0.6:1,...style}}>{children}</button>;}
+function Input({label,value,onChange,type="text",placeholder=""}){return <div>{label&&<label style={{fontSize:11,color:"#64748b",fontWeight:700,display:"block",marginBottom:5,letterSpacing:0.5}}>{label}</label>}<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",background:"#0f1117",border:"1px solid #1e2533",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:14,outline:"none"}}/></div>;}
+function Sel({label,value,onChange,opts}){return <div>{label&&<label style={{fontSize:11,color:"#64748b",fontWeight:700,display:"block",marginBottom:5,letterSpacing:0.5}}>{label}</label>}<select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:"#0f1117",border:"1px solid #1e2533",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:14}}>{opts.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}</select></div>;}
 
-function initials(name) { return name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2); }
-
-function getDaysUntil(dateStr) {
-  if (!dateStr) return null;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const due = new Date(dateStr.includes("T") ? dateStr : dateStr+"T00:00:00");
-  return Math.ceil((due - today) / 86400000);
-}
-
-function DueBadge({ date }) {
-  if (!date) return null;
-  const days = getDaysUntil(date);
-  let color="#22c55e", label=`${days}d left`;
-  if (days < 0) { color="#ef4444"; label=`${Math.abs(days)}d overdue`; }
-  else if (days === 0) { color="#f97316"; label="Due today"; }
-  else if (days <= 2) { color="#f59e0b"; label=`${days}d left`; }
-  return <span style={{fontSize:11,fontWeight:700,color,background:color+"18",borderRadius:6,padding:"2px 8px",whiteSpace:"nowrap"}}>{label}</span>;
-}
-
-function Spinner() {
-  return <div style={{width:20,height:20,border:"2px solid #1e2533",borderTop:"2px solid #f97316",borderRadius:"50%",animation:"spin .7s linear infinite"}} />;
-}
-
-function Toast({ msg, type }) {
-  const bg = type==="error" ? "#ef4444" : "#22c55e";
-  return (
-    <div style={{position:"fixed",bottom:24,right:24,zIndex:999,background:bg,color:"#fff",padding:"10px 20px",borderRadius:10,fontWeight:600,fontSize:14,animation:"fadeIn .2s ease",boxShadow:"0 4px 20px #0006"}}>
-      {type==="error" ? "❌ " : "✅ "}{msg}
+function LoginScreen({staff,onLogin}){
+  const [sel,setSel]=useState(null);
+  const [pin,setPin]=useState("");
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const handleKey=(k)=>{if(k==="del"){setPin(p=>p.slice(0,-1));return;}if(pin.length>=6)return;setPin(p=>p+k);};
+  const handleLogin=async()=>{if(!sel||pin.length<4)return;setBusy(true);setErr("");const res=await api.post("login",{staff_id:sel.id,pin});if(res.error){setErr("Wrong PIN. Try again.");setPin("");}else{onLogin(res);}setBusy(false);};
+  if(!sel)return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24,padding:24,background:"#0f1117"}}>
+      <div style={{fontSize:40}}>🔥</div>
+      <div style={{fontWeight:800,fontSize:22,color:"#fff",textAlign:"center"}}>Revival Today Youth</div>
+      <div style={{color:"#64748b",fontSize:14}}>Select your name to sign in</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:12,width:"100%",maxWidth:500}}>
+        {staff.map(s=>(
+          <Btn key={s.id} onClick={()=>{setSel(s);setPin("");setErr("");}}
+            style={{background:"#161b27",border:"1px solid #1e2533",borderRadius:14,padding:"16px 12px",display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+            <div style={{width:46,height:46,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div>
+            <div style={{fontWeight:600,fontSize:13,color:"#e2e8f0",textAlign:"center"}}>{s.name}</div>
+            <div style={{fontSize:10,color:s.role==="admin"?"#f97316":"#64748b",fontWeight:700,background:s.role==="admin"?"#f9731618":"#1e2533",padding:"2px 8px",borderRadius:20}}>{s.role==="admin"?"ADMIN":"WORKER"}</div>
+          </Btn>
+        ))}
+      </div>
+    </div>
+  );
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:24,background:"#0f1117"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:48,height:48,borderRadius:"50%",background:sel.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#0f1117"}}>{sel.avatar}</div>
+        <div><div style={{fontWeight:700,fontSize:18,color:"#fff"}}>{sel.name}</div><div style={{fontSize:12,color:"#64748b"}}>Enter your PIN</div></div>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:4}}>{[0,1,2,3,4,5].map(i=><div key={i} style={{width:14,height:14,borderRadius:"50%",background:i<pin.length?"#f97316":"#1e2533",transition:"background .15s"}}/>)}</div>
+      {err&&<div style={{color:"#ef4444",fontSize:13,fontWeight:600}}>{err}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:220}}>
+        {["1","2","3","4","5","6","7","8","9","del","0","✓"].map(k=>(
+          <Btn key={k} onClick={()=>k==="✓"?handleLogin():handleKey(k)}
+            style={{height:56,borderRadius:12,fontSize:k==="✓"||k==="del"?16:20,fontWeight:700,background:k==="✓"?"#f97316":k==="del"?"#1e2533":"#161b27",color:k==="✓"?"#fff":"#e2e8f0",border:"1px solid #1e2533",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {busy&&k==="✓"?<Spinner size={18}/>:k}
+          </Btn>
+        ))}
+      </div>
+      <Btn onClick={()=>{setSel(null);setPin("");setErr("");}} style={{color:"#64748b",fontSize:13,background:"transparent",padding:"6px 12px"}}>← Back</Btn>
     </div>
   );
 }
 
-function Input({ label, value, onChange, type="text", placeholder="" }) {
-  return (
-    <div>
-      {label && <label style={{fontSize:11,color:"#64748b",fontWeight:700,display:"block",marginBottom:5,letterSpacing:0.5}}>{label}</label>}
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-        style={{width:"100%",background:"#0f1117",border:"1px solid #1e2533",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:14,outline:"none"}} />
-    </div>
-  );
-}
-
-function Sel({ label, value, onChange, opts }) {
-  return (
-    <div>
-      {label && <label style={{fontSize:11,color:"#64748b",fontWeight:700,display:"block",marginBottom:5,letterSpacing:0.5}}>{label}</label>}
-      <select value={value} onChange={e=>onChange(e.target.value)}
-        style={{width:"100%",background:"#0f1117",border:"1px solid #1e2533",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:14}}>
-        {opts.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function Btn({ children, onClick, style={}, disabled=false }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{cursor:disabled?"not-allowed":"pointer",border:"none",fontFamily:"inherit",opacity:disabled?0.6:1,...style}}>
-      {children}
-    </button>
-  );
-}
-
-function App() {
-  const [staff, setStaff] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [view, setView] = useState("board");
-  const [tab, setTab] = useState("assignments");
-  const [filterStaff, setFilterStaff] = useState("all");
-  const [filterType, setFilterType] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [detailId, setDetailId] = useState(null);
-  const [form, setForm] = useState({title:"",type:"Task",assignee:"",priority:"Medium",status:"To Do",due:"",description:""});
-  const [showStaffModal, setShowStaffModal] = useState(false);
-  const [staffForm, setStaffForm] = useState({name:"",color:AVATAR_COLORS[0]});
-  const [editStaffId, setEditStaffId] = useState(null);
-
-  const showToast = (msg, type="success") => {
-    setToast({msg,type});
-    setTimeout(()=>setToast(null), 3000);
-  };
-
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      await api.get("setup");
-      const [s, a] = await Promise.all([api.get("staff"), api.get("assignments")]);
-      setStaff(Array.isArray(s) ? s : []);
-      setAssignments(Array.isArray(a) ? a : []);
-    } catch(e) {
-      showToast("Could not connect to database", "error");
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
-
-  const getStaff = (id) => staff.find(s=>s.id===Number(id)) || {name:"Unassigned",avatar:"?",color:"#64748b"};
-
-  const filtered = assignments.filter(a=>
-    (filterStaff==="all" || a.assignee===Number(filterStaff)) &&
-    (filterType==="all" || a.type===filterType) &&
-    (filterStatus==="all" || a.status===filterStatus)
-  );
-
-  const stats = {
-    total: assignments.length,
-    done: assignments.filter(a=>a.status==="Done").length,
-    overdue: assignments.filter(a=>{ const d=getDaysUntil(a.due); return d!==null&&d<0&&a.status!=="Done"; }).length,
-    urgent: assignments.filter(a=>a.priority==="Urgent"&&a.status!=="Done").length,
-  };
-
-  // Assignment CRUD
-  const openNew = () => {
-    setForm({title:"",type:"Task",assignee:staff[0]?.id||"",priority:"Medium",status:"To Do",due:"",description:""});
-    setEditingId(null); setShowModal(true);
-  };
-  const openEdit = (a) => {
-    const due = a.due ? a.due.split("T")[0] : "";
-    setForm({...a, due, assignee: String(a.assignee||"")});
-    setEditingId(a.id); setShowModal(true); setDetailId(null);
-  };
-  const saveForm = async () => {
-    if (!form.title.trim()) return;
-    setSaving(true);
-    try {
-      const payload = {...form, assignee: form.assignee ? Number(form.assignee) : null};
-      if (editingId) {
-        const updated = await api.put(`assignments/${editingId}`, payload);
-        setAssignments(prev=>prev.map(a=>a.id===editingId?updated:a));
-        showToast("Assignment updated!");
-      } else {
-        const created = await api.post("assignments", payload);
-        setAssignments(prev=>[created,...prev]);
-        showToast("Assignment created!");
-      }
-      setShowModal(false);
-    } catch { showToast("Failed to save", "error"); }
-    setSaving(false);
-  };
-  const deleteAssignment = async (id) => {
-    setSaving(true);
-    try {
-      await api.del(`assignments/${id}`);
-      setAssignments(prev=>prev.filter(a=>a.id!==id));
-      setDetailId(null);
-      showToast("Assignment deleted!");
-    } catch { showToast("Failed to delete","error"); }
-    setSaving(false);
-  };
-  const updateStatus = async (id, status) => {
-    const a = assignments.find(x=>x.id===id);
-    if (!a) return;
-    const updated = await api.put(`assignments/${id}`, {...a, due: a.due?a.due.split("T")[0]:""});
-    // optimistic update then refresh
-    setAssignments(prev=>prev.map(x=>x.id===id?{...x,status}:x));
-    await api.put(`assignments/${id}`, {...a, status, due: a.due?a.due.split("T")[0]:""});
-    showToast("Status updated!");
-  };
-
-  // Staff CRUD
-  const openNewStaff = () => { setStaffForm({name:"",color:AVATAR_COLORS[staff.length%AVATAR_COLORS.length]}); setEditStaffId(null); setShowStaffModal(true); };
-  const openEditStaff = (s) => { setStaffForm({name:s.name,color:s.color}); setEditStaffId(s.id); setShowStaffModal(true); };
-  const saveStaff = async () => {
-    if (!staffForm.name.trim()) return;
-    setSaving(true);
-    const avatar = initials(staffForm.name);
-    try {
-      if (editStaffId) {
-        const updated = await api.put(`staff/${editStaffId}`, {...staffForm, avatar});
-        setStaff(prev=>prev.map(s=>s.id===editStaffId?updated:s));
-        showToast("Staff member updated!");
-      } else {
-        const created = await api.post("staff", {...staffForm, avatar});
-        setStaff(prev=>[...prev, created]);
-        showToast("Staff member added!");
-      }
-      setShowStaffModal(false);
-    } catch { showToast("Failed to save","error"); }
-    setSaving(false);
-  };
-  const deleteStaff = async (id) => {
-    setSaving(true);
-    try {
-      await api.del(`staff/${id}`);
-      setStaff(prev=>prev.filter(s=>s.id!==id));
-      showToast("Staff member removed!");
-    } catch { showToast("Failed to delete","error"); }
-    setSaving(false);
-  };
-
-  const detailItem = assignments.find(a=>a.id===detailId);
-
-  if (loading) return (
-    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,background:"#0f1117"}}>
-      <div style={{fontSize:32}}>🔥</div>
-      <div style={{fontWeight:800,fontSize:20,color:"#fff"}}>Revival Today Youth</div>
-      <Spinner />
-      <div style={{color:"#64748b",fontSize:13}}>Connecting to database...</div>
-    </div>
-  );
-
-  return (
+function App(){
+  const [user,setUser]=useState(null);
+  const [staff,setStaff]=useState([]);
+  const [assignments,setAssignments]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [toast,setToast]=useState(null);
+  const [view,setView]=useState("board");
+  const [tab,setTab]=useState("assignments");
+  const [fType,setFType]=useState("all");
+  const [fStatus,setFStatus]=useState("all");
+  const [fStaff,setFStaff]=useState("all");
+  const [showModal,setShowModal]=useState(false);
+  const [editingId,setEditingId]=useState(null);
+  const [detailId,setDetailId]=useState(null);
+  const [form,setForm]=useState({title:"",type:"Task",assignee:"",priority:"Medium",status:"To Do",due:"",description:""});
+  const [showStaffModal,setShowStaffModal]=useState(false);
+  const [staffForm,setStaffForm]=useState({name:"",color:AVATAR_COLORS[0],pin:"",role:"worker"});
+  const [editStaffId,setEditStaffId]=useState(null);
+  const isAdmin=user?.role==="admin";
+  const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3500);};
+  const loadStaff=useCallback(async()=>{try{await api.get("setup");const s=await api.get("staff");setStaff(Array.isArray(s)?s:[]);}catch{showToast("Could not connect","error");}setLoading(false);},[]);
+  const loadAssignments=useCallback(async(u)=>{if(!u)return;try{const url=u.role==="worker"?`assignments?role=worker&staff_id=${u.id}`:"assignments";const a=await api.get(url);setAssignments(Array.isArray(a)?a:[]);}catch{showToast("Could not load","error");}},[]);
+  useEffect(()=>{loadStaff();},[loadStaff]);
+  useEffect(()=>{if(user)loadAssignments(user);},[user,loadAssignments]);
+  const getStaff=(id)=>staff.find(s=>s.id===Number(id))||{name:"Unassigned",avatar:"?",color:"#64748b"};
+  const filtered=assignments.filter(a=>(fType==="all"||a.type===fType)&&(fStatus==="all"||a.status===fStatus)&&(fStaff==="all"||a.assignee===Number(fStaff)));
+  const stats={total:assignments.length,done:assignments.filter(a=>a.status==="Done").length,overdue:assignments.filter(a=>{const d=getDaysUntil(a.due);return d!==null&&d<0&&a.status!=="Done";}).length,urgent:assignments.filter(a=>a.priority==="Urgent"&&a.status!=="Done").length};
+  const openNew=()=>{setForm({title:"",type:"Task",assignee:String(staff[0]?.id||""),priority:"Medium",status:"To Do",due:"",description:""});setEditingId(null);setShowModal(true);};
+  const openEdit=(a)=>{setForm({...a,due:a.due?a.due.split("T")[0]:"",assignee:String(a.assignee||"")});setEditingId(a.id);setShowModal(true);setDetailId(null);};
+  const saveForm=async()=>{if(!form.title.trim())return;setSaving(true);try{const p={...form,assignee:form.assignee?Number(form.assignee):null,due:form.due||null};if(editingId){await api.put(`assignments/${editingId}`,p);showToast("Updated!");}else{await api.post("assignments",p);showToast("Created!");}await loadAssignments(user);setShowModal(false);}catch{showToast("Failed","error");}setSaving(false);};
+  const deleteAssignment=async(id)=>{setSaving(true);try{await api.del(`assignments/${id}`);setDetailId(null);showToast("Deleted!");await loadAssignments(user);}catch{showToast("Failed","error");}setSaving(false);};
+  const updateStatus=async(id,status)=>{try{const a=assignments.find(x=>x.id===id);const p=isAdmin?{...a,status,due:a.due?a.due.split("T")[0]:null}:{status,role:user.role,staff_id:user.id};await api.put(`assignments/${id}`,p);setAssignments(prev=>prev.map(x=>x.id===id?{...x,status}:x));showToast("Status updated!");}catch{showToast("Failed","error");};};
+  const openNewStaff=()=>{setStaffForm({name:"",color:AVATAR_COLORS[staff.length%AVATAR_COLORS.length],pin:"",role:"worker"});setEditStaffId(null);setShowStaffModal(true);};
+  const openEditStaff=(s)=>{setStaffForm({name:s.name,color:s.color,pin:"",role:s.role});setEditStaffId(s.id);setShowStaffModal(true);};
+  const saveStaff=async()=>{if(!staffForm.name.trim())return;if(!editStaffId&&!staffForm.pin){showToast("PIN required","error");return;}setSaving(true);try{const av=initials(staffForm.name);if(editStaffId){await api.put(`staff/${editStaffId}`,{...staffForm,avatar:av});showToast("Updated!");}else{await api.post("staff",{...staffForm,avatar:av});showToast("Added!");}await loadStaff();setShowStaffModal(false);}catch{showToast("Failed","error");}setSaving(false);};
+  const deleteStaff=async(id)=>{setSaving(true);try{await api.del(`staff/${id}`);showToast("Removed!");await loadStaff();}catch{showToast("Failed","error");}setSaving(false);};
+  const detailItem=assignments.find(a=>a.id===detailId);
+  if(loading)return(<div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,background:"#0f1117"}}><div style={{fontSize:40}}>🔥</div><div style={{fontWeight:800,fontSize:22,color:"#fff"}}>Revival Today Youth</div><Spinner size={28}/></div>);
+  if(!user)return <LoginScreen staff={staff} onLogin={(u)=>{setUser(u);loadAssignments(u);}}/>;
+  return(
     <div style={{minHeight:"100vh",background:"#0f1117",color:"#e2e8f0",display:"flex",flexDirection:"column"}}>
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
-
-      {/* Header */}
-      <header style={{borderBottom:"1px solid #1e2533",padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",height:62,background:"#0f1117",position:"sticky",top:0,zIndex:100}}>
+      {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+      <header style={{borderBottom:"1px solid #1e2533",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:62,background:"#0f1117",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:34,height:34,borderRadius:8,background:"linear-gradient(135deg,#f97316,#ef4444)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🔥</div>
-          <div>
-            <div style={{fontWeight:800,fontSize:16,letterSpacing:-0.5,color:"#fff",lineHeight:1.1}}>Revival Today Youth</div>
-            <div style={{fontSize:10,color:"#64748b",fontWeight:600}}>Assignment Tracker</div>
-          </div>
+          <div><div style={{fontWeight:800,fontSize:16,color:"#fff",lineHeight:1.1}}>Revival Today Youth</div><div style={{fontSize:10,color:"#64748b",fontWeight:600}}>Assignment Tracker</div></div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          {tab==="assignments" && ["board","list"].map(v=>(
-            <Btn key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:8,fontWeight:600,fontSize:13,background:view===v?"#f97316":"#1e2533",color:view===v?"#fff":"#94a3b8"}}>
-              {v==="board"?"⊞ Board":"☰ List"}
-            </Btn>
-          ))}
-          <Btn onClick={()=>setTab(t=>t==="assignments"?"staff":"assignments")} style={{padding:"6px 14px",borderRadius:8,fontWeight:600,fontSize:13,background:"#1e2533",color:"#94a3b8",marginLeft:4}}>
-            {tab==="assignments"?"👥 Staff":"← Back"}
-          </Btn>
-          <Btn onClick={tab==="assignments"?openNew:openNewStaff} style={{padding:"6px 16px",borderRadius:8,fontWeight:700,fontSize:13,background:"#f97316",color:"#fff",marginLeft:4}}>
-            {tab==="assignments"?"+ New Assignment":"+ Add Staff"}
-          </Btn>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"#161b27",border:"1px solid #1e2533",borderRadius:20,padding:"4px 12px 4px 6px",marginRight:4}}>
+            <div style={{width:26,height:26,borderRadius:"50%",background:user.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#0f1117"}}>{user.avatar}</div>
+            <span style={{fontSize:12,fontWeight:600,color:"#e2e8f0"}}>{user.name}</span>
+            <span style={{fontSize:10,color:isAdmin?"#f97316":"#64748b",fontWeight:700}}>{isAdmin?"ADMIN":"WORKER"}</span>
+          </div>
+          {isAdmin&&tab==="assignments"&&["board","list"].map(v=><Btn key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:8,fontWeight:600,fontSize:13,background:view===v?"#f97316":"#1e2533",color:view===v?"#fff":"#94a3b8"}}>{v==="board"?"⊞ Board":"☰ List"}</Btn>)}
+          {isAdmin&&<Btn onClick={()=>setTab(t=>t==="assignments"?"staff":"assignments")} style={{padding:"6px 14px",borderRadius:8,fontWeight:600,fontSize:13,background:"#1e2533",color:"#94a3b8",marginLeft:4}}>{tab==="assignments"?"👥 Staff":"← Back"}</Btn>}
+          {isAdmin&&<Btn onClick={tab==="assignments"?openNew:openNewStaff} style={{padding:"6px 16px",borderRadius:8,fontWeight:700,fontSize:13,background:"#f97316",color:"#fff",marginLeft:4}}>{tab==="assignments"?"+ New Assignment":"+ Add Staff"}</Btn>}
+          <Btn onClick={()=>setUser(null)} style={{padding:"6px 12px",borderRadius:8,fontWeight:600,fontSize:13,background:"#1e2533",color:"#94a3b8",marginLeft:4}}>Sign Out</Btn>
         </div>
       </header>
-
-      {tab==="staff" ? (
-        <div style={{padding:"28px",flex:1}}>
+      {tab==="staff"&&isAdmin?(
+        <div style={{padding:28,flex:1}}>
           <div style={{marginBottom:20,fontWeight:700,fontSize:18,color:"#fff"}}>Staff Members <span style={{color:"#64748b",fontWeight:400,fontSize:14}}>({staff.length})</span></div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
-            {staff.map(s=>{
-              const myTasks = assignments.filter(a=>a.assignee===s.id);
-              const done = myTasks.filter(a=>a.status==="Done").length;
-              return (
-                <div key={s.id} style={{background:"#161b27",borderRadius:14,padding:20,border:"1px solid #1e2533",animation:"fadeIn .2s ease"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                    <div style={{width:44,height:44,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div>
-                    <div>
-                      <div style={{fontWeight:700,color:"#fff",fontSize:15}}>{s.name}</div>
-                      <div style={{fontSize:12,color:"#64748b"}}>{myTasks.length} assignments</div>
-                    </div>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                      <span style={{fontSize:11,color:"#64748b"}}>Completion</span>
-                      <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{myTasks.length?Math.round(done/myTasks.length*100):0}%</span>
-                    </div>
-                    <div style={{height:5,background:"#1e2533",borderRadius:3,overflow:"hidden"}}>
-                      <div style={{height:"100%",background:s.color,width:`${myTasks.length?done/myTasks.length*100:0}%`,borderRadius:3,transition:"width .4s"}} />
-                    </div>
-                  </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <Btn onClick={()=>openEditStaff(s)} style={{flex:1,padding:"7px 0",background:"#1e2533",borderRadius:8,color:"#94a3b8",fontWeight:600,fontSize:13}}>Edit</Btn>
-                    <Btn onClick={()=>deleteStaff(s.id)} style={{padding:"7px 12px",background:"#ef444418",borderRadius:8,color:"#ef4444",fontWeight:600,fontSize:13,border:"1px solid #ef444444"}}>✕</Btn>
-                  </div>
+            {staff.map(s=>{const mt=assignments.filter(a=>a.assignee===s.id);const dn=mt.filter(a=>a.status==="Done").length;return(
+              <div key={s.id} style={{background:"#161b27",borderRadius:14,padding:20,border:"1px solid #1e2533"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                  <div style={{width:44,height:44,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div>
+                  <div><div style={{fontWeight:700,color:"#fff",fontSize:15}}>{s.name}</div><div style={{fontSize:11,color:s.role==="admin"?"#f97316":"#64748b",fontWeight:700}}>{s.role==="admin"?"ADMIN":"WORKER"}</div></div>
                 </div>
-              );
-            })}
+                <div style={{marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:11,color:"#64748b"}}>Completion</span><span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{mt.length?Math.round(dn/mt.length*100):0}%</span></div>
+                  <div style={{height:5,background:"#1e2533",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:s.color,width:`${mt.length?dn/mt.length*100:0}%`,borderRadius:3,transition:"width .4s"}}/></div>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <Btn onClick={()=>openEditStaff(s)} style={{flex:1,padding:"7px 0",background:"#1e2533",borderRadius:8,color:"#94a3b8",fontWeight:600,fontSize:13}}>Edit</Btn>
+                  <Btn onClick={()=>deleteStaff(s.id)} style={{padding:"7px 12px",background:"#ef444418",borderRadius:8,color:"#ef4444",fontWeight:600,fontSize:13,border:"1px solid #ef444444"}}>✕</Btn>
+                </div>
+              </div>
+            );})}
           </div>
         </div>
-      ) : (
+      ):(
         <>
-          {/* Stats + Filters */}
-          <div style={{display:"flex",gap:12,padding:"14px 28px",borderBottom:"1px solid #1e2533",flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{display:"flex",gap:12,padding:"14px 24px",borderBottom:"1px solid #1e2533",flexWrap:"wrap",alignItems:"center"}}>
             {[{label:"Total",value:stats.total,color:"#f97316"},{label:"Completed",value:stats.done,color:"#22c55e"},{label:"Overdue",value:stats.overdue,color:"#ef4444"},{label:"Urgent",value:stats.urgent,color:"#f59e0b"}].map(s=>(
               <div key={s.label} style={{background:"#161b27",borderRadius:10,padding:"9px 18px",display:"flex",alignItems:"center",gap:10,border:`1px solid ${s.color}22`}}>
-                <span style={{fontSize:21,fontWeight:800,color:s.color}}>{s.value}</span>
-                <span style={{fontSize:12,color:"#64748b",fontWeight:600}}>{s.label}</span>
+                <span style={{fontSize:21,fontWeight:800,color:s.color}}>{s.value}</span><span style={{fontSize:12,color:"#64748b",fontWeight:600}}>{s.label}</span>
               </div>
             ))}
             <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
-              {[
-                {val:filterStaff,set:setFilterStaff,opts:[{value:"all",label:"All Staff"},...staff.map(s=>({value:String(s.id),label:s.name}))]},
-                {val:filterType,set:setFilterType,opts:[{value:"all",label:"All Types"},...TYPES.map(t=>({value:t,label:t}))]},
-                {val:filterStatus,set:setFilterStatus,opts:[{value:"all",label:"All Statuses"},...STATUSES.map(s=>({value:s,label:s}))]},
-              ].map((f,i)=>(
-                <select key={i} value={f.val} onChange={e=>f.set(e.target.value)}
-                  style={{background:"#161b27",border:"1px solid #1e2533",color:"#e2e8f0",borderRadius:8,padding:"6px 10px",fontSize:13,cursor:"pointer"}}>
-                  {f.opts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              ))}
-              <Btn onClick={loadAll} style={{padding:"6px 12px",background:"#1e2533",borderRadius:8,color:"#94a3b8",fontSize:13,fontWeight:600}} title="Refresh">↻ Refresh</Btn>
+              {isAdmin&&<select value={fStaff} onChange={e=>setFStaff(e.target.value)} style={{background:"#161b27",border:"1px solid #1e2533",color:"#e2e8f0",borderRadius:8,padding:"6px 10px",fontSize:13,cursor:"pointer"}}><option value="all">All Staff</option>{staff.map(s=><option key={s.id} value={String(s.id)}>{s.name}</option>)}</select>}
+              <select value={fType} onChange={e=>setFType(e.target.value)} style={{background:"#161b27",border:"1px solid #1e2533",color:"#e2e8f0",borderRadius:8,padding:"6px 10px",fontSize:13,cursor:"pointer"}}><option value="all">All Types</option>{TYPES.map(t=><option key={t}>{t}</option>)}</select>
+              <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{background:"#161b27",border:"1px solid #1e2533",color:"#e2e8f0",borderRadius:8,padding:"6px 10px",fontSize:13,cursor:"pointer"}}><option value="all">All Statuses</option>{STATUSES.map(s=><option key={s}>{s}</option>)}</select>
+              <Btn onClick={()=>loadAssignments(user)} style={{padding:"6px 12px",background:"#1e2533",borderRadius:8,color:"#94a3b8",fontSize:13,fontWeight:600}}>↻</Btn>
             </div>
           </div>
-
-          <div style={{flex:1,padding:"22px 28px",overflow:"auto"}}>
-            {view==="board" ? (
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,minWidth:720}}>
-                {STATUSES.map(status=>{
-                  const cols = filtered.filter(a=>a.status===status);
-                  return (
-                    <div key={status}>
-                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:11}}>
-                        <div style={{width:9,height:9,borderRadius:"50%",background:STATUS_COLORS[status]}} />
-                        <span style={{fontWeight:700,fontSize:12,color:"#94a3b8",letterSpacing:0.5}}>{status.toUpperCase()}</span>
-                        <span style={{marginLeft:"auto",background:"#1e2533",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,color:"#64748b"}}>{cols.length}</span>
-                      </div>
-                      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                        {cols.map(a=>{
-                          const s=getStaff(a.assignee);
-                          return (
-                            <div key={a.id} onClick={()=>setDetailId(a.id)}
-                              style={{background:"#161b27",borderRadius:12,padding:"13px 15px",border:"1px solid #1e2533",cursor:"pointer",transition:"border-color .15s",animation:"fadeIn .2s ease"}}
-                              onMouseEnter={e=>e.currentTarget.style.borderColor="#f97316"}
-                              onMouseLeave={e=>e.currentTarget.style.borderColor="#1e2533"}>
-                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
-                                <span style={{fontSize:10,fontWeight:700,color:PRIORITY_COLORS[a.priority],background:PRIORITY_COLORS[a.priority]+"18",padding:"2px 7px",borderRadius:5}}>{a.priority?.toUpperCase()}</span>
-                                <span style={{fontSize:10,color:"#64748b",background:"#0f1117",padding:"2px 7px",borderRadius:5,fontWeight:600}}>{a.type}</span>
-                              </div>
-                              <div style={{fontWeight:600,fontSize:14,color:"#e2e8f0",marginBottom:10,lineHeight:1.4}}>{a.title}</div>
-                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                  <div style={{width:24,height:24,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div>
-                                  <span style={{fontSize:11,color:"#64748b"}}>{s.name.split(" ")[0]}</span>
-                                </div>
-                                <DueBadge date={a.due} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {cols.length===0 && <div style={{borderRadius:12,border:"2px dashed #1e2533",height:72,display:"flex",alignItems:"center",justifyContent:"center",color:"#334155",fontSize:12}}>Empty</div>}
-                      </div>
+          <div style={{flex:1,padding:"22px 24px",overflow:"auto"}}>
+            {isAdmin&&view==="board"?(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,minWidth:700}}>
+                {STATUSES.map(status=>{const cols=filtered.filter(a=>a.status===status);return(
+                  <div key={status}>
+                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:11}}>
+                      <div style={{width:9,height:9,borderRadius:"50%",background:STATUS_COLORS[status]}}/><span style={{fontWeight:700,fontSize:12,color:"#94a3b8",letterSpacing:0.5}}>{status.toUpperCase()}</span>
+                      <span style={{marginLeft:"auto",background:"#1e2533",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,color:"#64748b"}}>{cols.length}</span>
                     </div>
-                  );
-                })}
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      {cols.map(a=>{const s=getStaff(a.assignee);return(
+                        <div key={a.id} onClick={()=>setDetailId(a.id)} style={{background:"#161b27",borderRadius:12,padding:"13px 15px",border:"1px solid #1e2533",cursor:"pointer",transition:"border-color .15s"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#f97316"} onMouseLeave={e=>e.currentTarget.style.borderColor="#1e2533"}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}><span style={{fontSize:10,fontWeight:700,color:PRIORITY_COLORS[a.priority],background:PRIORITY_COLORS[a.priority]+"18",padding:"2px 7px",borderRadius:5}}>{a.priority?.toUpperCase()}</span><span style={{fontSize:10,color:"#64748b",background:"#0f1117",padding:"2px 7px",borderRadius:5,fontWeight:600}}>{a.type}</span></div>
+                          <div style={{fontWeight:600,fontSize:14,color:"#e2e8f0",marginBottom:10,lineHeight:1.4}}>{a.title}</div>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:24,height:24,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div><span style={{fontSize:11,color:"#64748b"}}>{s.name.split(" ")[0]}</span></div>
+                            <DueBadge date={a.due}/>
+                          </div>
+                        </div>
+                      );})}
+                      {cols.length===0&&<div style={{borderRadius:12,border:"2px dashed #1e2533",height:72,display:"flex",alignItems:"center",justifyContent:"center",color:"#334155",fontSize:12}}>Empty</div>}
+                    </div>
+                  </div>
+                );})}
               </div>
-            ) : (
+            ):(
               <div style={{background:"#161b27",borderRadius:14,border:"1px solid #1e2533",overflow:"hidden"}}>
+                {!isAdmin&&<div style={{padding:"14px 20px",borderBottom:"1px solid #1e2533",color:"#94a3b8",fontSize:13}}>👋 Welcome, <strong style={{color:"#fff"}}>{user.name}</strong> — your assignments</div>}
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead>
-                    <tr style={{borderBottom:"1px solid #1e2533"}}>
-                      {["Assignment","Type","Assignee","Priority","Status","Due"].map(h=>(
-                        <th key={h} style={{padding:"11px 16px",textAlign:"left",fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:0.5}}>{h.toUpperCase()}</th>
-                      ))}
+                  <thead><tr style={{borderBottom:"1px solid #1e2533"}}>{["Assignment","Type",isAdmin?"Assignee":null,"Priority","Status","Due"].filter(Boolean).map(h=><th key={h} style={{padding:"11px 16px",textAlign:"left",fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:0.5}}>{h.toUpperCase()}</th>)}</tr></thead>
+                  <tbody>{filtered.map((a,i)=>{const s=getStaff(a.assignee);return(
+                    <tr key={a.id} onClick={()=>setDetailId(a.id)} style={{borderBottom:"1px solid #1e253366",cursor:"pointer",background:i%2===0?"transparent":"#0f111766"}} onMouseEnter={e=>e.currentTarget.style.background="#f9731611"} onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":"#0f111766"}>
+                      <td style={{padding:"11px 16px",fontWeight:600,fontSize:14,color:"#e2e8f0"}}>{a.title}</td>
+                      <td style={{padding:"11px 16px",fontSize:12,color:"#94a3b8"}}>{a.type}</td>
+                      {isAdmin&&<td style={{padding:"11px 16px"}}><div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:26,height:26,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div><span style={{fontSize:13,color:"#94a3b8"}}>{s.name}</span></div></td>}
+                      <td style={{padding:"11px 16px"}}><span style={{fontSize:11,fontWeight:700,color:PRIORITY_COLORS[a.priority],background:PRIORITY_COLORS[a.priority]+"18",padding:"3px 8px",borderRadius:6}}>{a.priority}</span></td>
+                      <td style={{padding:"11px 16px"}}><span style={{fontSize:11,fontWeight:700,color:STATUS_COLORS[a.status],background:STATUS_COLORS[a.status]+"18",padding:"3px 8px",borderRadius:6}}>{a.status}</span></td>
+                      <td style={{padding:"11px 16px"}}><DueBadge date={a.due}/></td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((a,i)=>{
-                      const s=getStaff(a.assignee);
-                      return (
-                        <tr key={a.id} onClick={()=>setDetailId(a.id)}
-                          style={{borderBottom:"1px solid #1e253366",cursor:"pointer",background:i%2===0?"transparent":"#0f111766"}}
-                          onMouseEnter={e=>e.currentTarget.style.background="#f9731611"}
-                          onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":"#0f111766"}>
-                          <td style={{padding:"11px 16px",fontWeight:600,fontSize:14,color:"#e2e8f0"}}>{a.title}</td>
-                          <td style={{padding:"11px 16px",fontSize:12,color:"#94a3b8"}}>{a.type}</td>
-                          <td style={{padding:"11px 16px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:7}}>
-                              <div style={{width:26,height:26,borderRadius:"50%",background:s.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#0f1117"}}>{s.avatar}</div>
-                              <span style={{fontSize:13,color:"#94a3b8"}}>{s.name}</span>
-                            </div>
-                          </td>
-                          <td style={{padding:"11px 16px"}}><span style={{fontSize:11,fontWeight:700,color:PRIORITY_COLORS[a.priority],background:PRIORITY_COLORS[a.priority]+"18",padding:"3px 8px",borderRadius:6}}>{a.priority}</span></td>
-                          <td style={{padding:"11px 16px"}}><span style={{fontSize:11,fontWeight:700,color:STATUS_COLORS[a.status],background:STATUS_COLORS[a.status]+"18",padding:"3px 8px",borderRadius:6}}>{a.status}</span></td>
-                          <td style={{padding:"11px 16px"}}><DueBadge date={a.due} /></td>
-                        </tr>
-                      );
-                    })}
+                  );})}
                   </tbody>
                 </table>
-                {filtered.length===0 && <div style={{padding:40,textAlign:"center",color:"#334155"}}>No assignments found.</div>}
+                {filtered.length===0&&<div style={{padding:40,textAlign:"center",color:"#334155"}}>No assignments found.</div>}
               </div>
             )}
           </div>
         </>
       )}
-
-      {/* Detail Panel */}
-      {detailItem && (
+      {detailItem&&(
         <div style={{position:"fixed",inset:0,background:"#000b",zIndex:200,display:"flex",justifyContent:"flex-end"}} onClick={()=>setDetailId(null)}>
           <div style={{width:400,background:"#161b27",height:"100%",borderLeft:"1px solid #1e2533",padding:28,overflow:"auto",display:"flex",flexDirection:"column",gap:18}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div>
-                <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:5}}>{detailItem.type?.toUpperCase()}</div>
-                <div style={{fontSize:19,fontWeight:800,color:"#fff",lineHeight:1.3}}>{detailItem.title}</div>
-              </div>
+              <div><div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:5}}>{detailItem.type?.toUpperCase()}</div><div style={{fontSize:19,fontWeight:800,color:"#fff",lineHeight:1.3}}>{detailItem.title}</div></div>
               <Btn onClick={()=>setDetailId(null)} style={{background:"#1e2533",color:"#94a3b8",borderRadius:8,width:32,height:32,fontSize:15}}>✕</Btn>
             </div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <span style={{fontSize:12,fontWeight:700,color:PRIORITY_COLORS[detailItem.priority],background:PRIORITY_COLORS[detailItem.priority]+"18",padding:"4px 12px",borderRadius:8}}>{detailItem.priority}</span>
               <span style={{fontSize:12,fontWeight:700,color:STATUS_COLORS[detailItem.status],background:STATUS_COLORS[detailItem.status]+"18",padding:"4px 12px",borderRadius:8}}>{detailItem.status}</span>
-              <DueBadge date={detailItem.due} />
+              <DueBadge date={detailItem.due}/>
             </div>
-            <div style={{background:"#0f1117",borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:8}}>ASSIGNED TO</div>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:getStaff(detailItem.assignee).color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#0f1117"}}>{getStaff(detailItem.assignee).avatar}</div>
-                <span style={{fontWeight:600,color:"#e2e8f0"}}>{getStaff(detailItem.assignee).name}</span>
-              </div>
-            </div>
-            {detailItem.description && (
-              <div style={{background:"#0f1117",borderRadius:10,padding:14}}>
-                <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:8}}>DESCRIPTION</div>
-                <div style={{fontSize:14,color:"#94a3b8",lineHeight:1.6}}>{detailItem.description}</div>
-              </div>
-            )}
-            {detailItem.due && (
-              <div style={{background:"#0f1117",borderRadius:10,padding:14}}>
-                <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:4}}>DUE DATE</div>
-                <div style={{fontSize:14,color:"#e2e8f0"}}>{new Date(detailItem.due.includes("T")?detailItem.due:detailItem.due+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
-              </div>
-            )}
-            <div>
-              <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:8}}>UPDATE STATUS</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-                {STATUSES.map(s=>(
-                  <Btn key={s} onClick={()=>updateStatus(detailItem.id,s)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${detailItem.status===s?STATUS_COLORS[s]:"#1e2533"}`,background:detailItem.status===s?STATUS_COLORS[s]+"22":"transparent",color:detailItem.status===s?STATUS_COLORS[s]:"#64748b",fontWeight:600,fontSize:12}}>{s}</Btn>
-                ))}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:9,marginTop:"auto"}}>
-              <Btn onClick={()=>openEdit(detailItem)} style={{flex:1,padding:"10px 0",background:"#f97316",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14}}>Edit</Btn>
-              <Btn onClick={()=>deleteAssignment(detailItem.id)} style={{padding:"10px 14px",background:"#ef444418",border:"1px solid #ef4444",borderRadius:10,color:"#ef4444",fontWeight:700,fontSize:14}}>Delete</Btn>
-            </div>
+            {isAdmin&&<div style={{background:"#0f1117",borderRadius:10,padding:14}}><div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:8}}>ASSIGNED TO</div><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:36,height:36,borderRadius:"50%",background:getStaff(detailItem.assignee).color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#0f1117"}}>{getStaff(detailItem.assignee).avatar}</div><span style={{fontWeight:600,color:"#e2e8f0"}}>{getStaff(detailItem.assignee).name}</span></div></div>}
+            {detailItem.description&&<div style={{background:"#0f1117",borderRadius:10,padding:14}}><div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:8}}>DESCRIPTION</div><div style={{fontSize:14,color:"#94a3b8",lineHeight:1.6}}>{detailItem.description}</div></div>}
+            {detailItem.due&&<div style={{background:"#0f1117",borderRadius:10,padding:14}}><div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:4}}>DUE DATE</div><div style={{fontSize:14,color:"#e2e8f0"}}>{new Date(detailItem.due.includes("T")?detailItem.due:detailItem.due+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>}
+            <div><div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:8}}>UPDATE STATUS</div><div style={{display:"flex",flexWrap:"wrap",gap:7}}>{STATUSES.map(s=><Btn key={s} onClick={()=>updateStatus(detailItem.id,s)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${detailItem.status===s?STATUS_COLORS[s]:"#1e2533"}`,background:detailItem.status===s?STATUS_COLORS[s]+"22":"transparent",color:detailItem.status===s?STATUS_COLORS[s]:"#64748b",fontWeight:600,fontSize:12}}>{s}</Btn>)}</div></div>
+            {isAdmin&&<div style={{display:"flex",gap:9,marginTop:"auto"}}><Btn onClick={()=>openEdit(detailItem)} style={{flex:1,padding:"10px 0",background:"#f97316",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14}}>Edit</Btn><Btn onClick={()=>deleteAssignment(detailItem.id)} style={{padding:"10px 14px",background:"#ef444418",border:"1px solid #ef4444",borderRadius:10,color:"#ef4444",fontWeight:700,fontSize:14}}>Delete</Btn></div>}
           </div>
         </div>
       )}
-
-      {/* Assignment Modal */}
-      {showModal && (
+      {showModal&&isAdmin&&(
         <div style={{position:"fixed",inset:0,background:"#000b",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShowModal(false)}>
           <div style={{background:"#161b27",borderRadius:16,padding:28,width:"100%",maxWidth:480,border:"1px solid #1e2533",display:"flex",flexDirection:"column",gap:14,maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontWeight:800,fontSize:17,color:"#fff"}}>{editingId?"Edit Assignment":"New Assignment"}</div>
-            <Input label="TITLE" value={form.title} onChange={v=>setForm(p=>({...p,title:v}))} placeholder="e.g. Cover morning shift" />
-            <Input label="DESCRIPTION" value={form.description} onChange={v=>setForm(p=>({...p,description:v}))} placeholder="Optional details..." />
-            <Input label="DUE DATE" type="date" value={form.due} onChange={v=>setForm(p=>({...p,due:v}))} />
-            <Sel label="TYPE" value={form.type} onChange={v=>setForm(p=>({...p,type:v}))} opts={TYPES} />
-            <Sel label="PRIORITY" value={form.priority} onChange={v=>setForm(p=>({...p,priority:v}))} opts={PRIORITIES} />
-            <Sel label="STATUS" value={form.status} onChange={v=>setForm(p=>({...p,status:v}))} opts={STATUSES} />
-            <Sel label="ASSIGN TO" value={String(form.assignee)} onChange={v=>setForm(p=>({...p,assignee:v}))} opts={staff.map(s=>({value:String(s.id),label:s.name}))} />
+            <Input label="TITLE" value={form.title} onChange={v=>setForm(p=>({...p,title:v}))} placeholder="e.g. Cover morning shift"/>
+            <Input label="DESCRIPTION" value={form.description} onChange={v=>setForm(p=>({...p,description:v}))} placeholder="Optional details..."/>
+            <Input label="DUE DATE" type="date" value={form.due} onChange={v=>setForm(p=>({...p,due:v}))}/>
+            <Sel label="TYPE" value={form.type} onChange={v=>setForm(p=>({...p,type:v}))} opts={TYPES}/>
+            <Sel label="PRIORITY" value={form.priority} onChange={v=>setForm(p=>({...p,priority:v}))} opts={PRIORITIES}/>
+            <Sel label="STATUS" value={form.status} onChange={v=>setForm(p=>({...p,status:v}))} opts={STATUSES}/>
+            <Sel label="ASSIGN TO" value={String(form.assignee)} onChange={v=>setForm(p=>({...p,assignee:v}))} opts={staff.map(s=>({value:String(s.id),label:s.name}))}/>
             <div style={{display:"flex",gap:9,marginTop:6}}>
-              <Btn onClick={saveForm} disabled={saving} style={{flex:1,padding:"11px 0",background:"#f97316",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                {saving ? <Spinner/> : (editingId?"Save Changes":"Create Assignment")}
-              </Btn>
+              <Btn onClick={saveForm} disabled={saving} style={{flex:1,padding:"11px 0",background:"#f97316",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{saving?<Spinner/>:(editingId?"Save Changes":"Create Assignment")}</Btn>
               <Btn onClick={()=>setShowModal(false)} style={{padding:"11px 18px",background:"transparent",border:"1px solid #1e2533",borderRadius:10,color:"#64748b",fontWeight:700,fontSize:14}}>Cancel</Btn>
             </div>
           </div>
         </div>
       )}
-
-      {/* Staff Modal */}
-      {showStaffModal && (
+      {showStaffModal&&isAdmin&&(
         <div style={{position:"fixed",inset:0,background:"#000b",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShowStaffModal(false)}>
           <div style={{background:"#161b27",borderRadius:16,padding:28,width:"100%",maxWidth:400,border:"1px solid #1e2533",display:"flex",flexDirection:"column",gap:16}} onClick={e=>e.stopPropagation()}>
             <div style={{fontWeight:800,fontSize:17,color:"#fff"}}>{editStaffId?"Edit Staff Member":"Add Staff Member"}</div>
-            <Input label="FULL NAME" value={staffForm.name} onChange={v=>setStaffForm(p=>({...p,name:v}))} placeholder="e.g. Jordan Smith" />
-            <div>
-              <label style={{fontSize:11,color:"#64748b",fontWeight:700,display:"block",marginBottom:8,letterSpacing:0.5}}>AVATAR COLOR</label>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {AVATAR_COLORS.map(c=>(
-                  <div key={c} onClick={()=>setStaffForm(p=>({...p,color:c}))}
-                    style={{width:30,height:30,borderRadius:"50%",background:c,cursor:"pointer",border:staffForm.color===c?"3px solid #fff":"3px solid transparent",transition:"border .1s"}} />
-                ))}
-              </div>
-            </div>
-            {staffForm.name && (
-              <div style={{display:"flex",alignItems:"center",gap:10,background:"#0f1117",padding:12,borderRadius:10}}>
-                <div style={{width:38,height:38,borderRadius:"50%",background:staffForm.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#0f1117"}}>{initials(staffForm.name)||"?"}</div>
-                <span style={{fontWeight:600,color:"#e2e8f0"}}>{staffForm.name}</span>
-              </div>
-            )}
+            <Input label="FULL NAME" value={staffForm.name} onChange={v=>setStaffForm(p=>({...p,name:v}))} placeholder="e.g. Jordan Smith"/>
+            <Input label={editStaffId?"NEW PIN (leave blank to keep)":"PIN (4–6 digits)"} value={staffForm.pin} onChange={v=>setStaffForm(p=>({...p,pin:v}))} type="password" placeholder="e.g. 1234"/>
+            <Sel label="ROLE" value={staffForm.role} onChange={v=>setStaffForm(p=>({...p,role:v}))} opts={[{value:"worker",label:"Worker"},{value:"admin",label:"Admin"}]}/>
+            <div><label style={{fontSize:11,color:"#64748b",fontWeight:700,display:"block",marginBottom:8,letterSpacing:0.5}}>AVATAR COLOR</label><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{AVATAR_COLORS.map(c=><div key={c} onClick={()=>setStaffForm(p=>({...p,color:c}))} style={{width:30,height:30,borderRadius:"50%",background:c,cursor:"pointer",border:staffForm.color===c?"3px solid #fff":"3px solid transparent",transition:"border .1s"}}/>)}</div></div>
+            {staffForm.name&&<div style={{display:"flex",alignItems:"center",gap:10,background:"#0f1117",padding:12,borderRadius:10}}><div style={{width:38,height:38,borderRadius:"50%",background:staffForm.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#0f1117"}}>{initials(staffForm.name)||"?"}</div><span style={{fontWeight:600,color:"#e2e8f0"}}>{staffForm.name}</span></div>}
             <div style={{display:"flex",gap:9}}>
-              <Btn onClick={saveStaff} disabled={saving} style={{flex:1,padding:"11px 0",background:"#f97316",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                {saving ? <Spinner/> : (editStaffId?"Save Changes":"Add Member")}
-              </Btn>
+              <Btn onClick={saveStaff} disabled={saving} style={{flex:1,padding:"11px 0",background:"#f97316",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{saving?<Spinner/>:(editStaffId?"Save Changes":"Add Member")}</Btn>
               <Btn onClick={()=>setShowStaffModal(false)} style={{padding:"11px 18px",background:"transparent",border:"1px solid #1e2533",borderRadius:10,color:"#64748b",fontWeight:700,fontSize:14}}>Cancel</Btn>
             </div>
           </div>
@@ -520,8 +291,7 @@ function App() {
     </div>
   );
 }
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
